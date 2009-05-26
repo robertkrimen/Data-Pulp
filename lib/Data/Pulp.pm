@@ -5,7 +5,7 @@ use strict;
 
 =head1 NAME
 
-Data::Pulp -
+Data::Pulp - Pulp your data into a consistent goop
 
 =head1 VERSION
 
@@ -16,6 +16,78 @@ Version 0.01
 our $VERSION = '0.01';
 
 =head1 SYNOPSIS
+
+    use Data::Pulp;
+
+    my $pulper = pulper
+        case { $_ eq 'apple' } then { 'APPLE' }
+        case { $_ eq 'banana' }
+        case { $_ eq 'cherry' } then { 'CHERRY' }
+        case { ref eq 'SCALAR' } then { 'SCALAR' }
+        empty { 'empty' }
+        nil { 'nil' }
+        case { m/xyzzy/ } then { 'Nothing happens.' }
+        default { croak "Don't understand $_" }
+    ;
+
+    $pulper->pulp( 'apple' )        # APPLE
+    $pulper->pulp( 'banana' )       # CHERRY
+    $pulper->pulp( 'xyyxyzzyx' )    # Nothing happens.
+    $pulper->pulp( undef )          # nil
+    $pulper->pulp( '' )             # empty
+    $pulper->pulp( '1' )            # Throw an exception: Don't understand 1
+
+    # You can also operate on an array or hash
+
+    my $set = $pulper->prepare( [ qw/apple banana cherry/, '', undef, qw/xyzzy xyyxyzzyx grape/ ] )
+
+    $set->all       # APPLE, CHERRY, CHERRY, empty, nil, Nothing happens ...
+    $set->first     # APPLE
+    $set->last      # Throw an exception: Don't understand grape
+
+=head1 DESCRIPTION
+
+Data::Pulp is a tool for coercing and/or validating input data. Instead of doing this:
+
+    if ( defined $value ) {
+        if ( ref $value eq ... ) {
+            ...
+        }
+        elsif ( $value =~ m/.../ ) {
+            ...
+        }
+        ...
+    }
+    else {
+    }
+
+You can do something like this:
+
+    my $pulper = pulper
+        case { $_ eq ... }  then { ... }
+        case { m/.../ }     then { ... }
+        nil { ... # Do action if value is undefined }
+    ;
+
+    $pulper->pulp( $value )
+
+A pulper can act transparently on a single value, ARRAY, or HASH:
+
+    my $set = $pulper->prepare( $value ) # A single value list
+    my $set = $pulper->prepare( [ $value, ... ] )
+    my $set = $pulper->prepare( { key => $value, ... } ) # Throws away the keys, basically
+
+So, given a subroutine:
+
+    sub method {
+        my $data = shift;
+        # $data could be a single value, or an array, or even a hash
+        my $set = $pulper->prepare( $data )
+        my @data = $set->all # Get all the data coerced how you want
+                             # or throw an exception if something bad is encountered
+
+        ...
+    }
 
 =cut
 
@@ -31,22 +103,13 @@ sub EXPORT () {qw/
 use Sub::Exporter -setup => {
     exports => [
         EXPORT,
-#        pulper => sub { my $caller = caller; sub { pulper( $caller, @_ ) }, },
-#        pulp => sub { my $caller = caller; sub { pulp( $caller, @_ ) }, },
     ],
     groups => {
         default => [ EXPORT ],
-#        default => [ EXPORT, qw/ pulper pulp / ],
     },
 };
 
 use Data::Pulp::Pulper;
-
-##my ($import, $unimport) = Moose::Exporter->build_import_methods( cj
-#Moose::Exporter->setup_import_methods(
-#    with_caller => [qw/ pulper /],
-#    as_is => [qw/ case then empty nil default /],
-#);
 
 sub case (&@) { return case => @_ }
 sub if_value (&@) { return if_value => @_ }
@@ -61,31 +124,6 @@ sub pulper {
     shift if $_[0] eq __PACKAGE__;
     return Data::Pulp::Pulper->parse( @_ );
 }
-
-#{
-#    my %PULPER; # Meh?
-
-#    sub pulper {
-#        my $caller = shift;
-#        if ( ref $_[0] eq 'ARRAY' ) {
-#            return Data::Pulp::Pulper->parse( @{ $_[0] } );
-#        }
-#        else {
-#            my $name = shift;
-#            $PULPER{$caller}{$name} = Data::Pulp::Pulper->parse( @_ );
-#        }
-#    }
-
-#    sub pulp {
-#        my $caller = shift;
-#        my $name = shift;
-#        my $value = shift;
-
-#        my $pulper = $PULPER{$caller}{$name};
-#        croak "Can't find pulper for \"$name\" (in $caller)" unless $pulper;
-#        return $pulper->prepare( $value );
-#    }
-#}
 
 =head1 AUTHOR
 

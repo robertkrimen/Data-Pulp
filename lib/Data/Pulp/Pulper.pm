@@ -84,6 +84,10 @@ sub prepare {
     return Data::Pulp::Set->new( pulper => $self, source => shift );
 }
 
+sub set {
+    return shift->prepare( @_ );
+}
+
 package Data::Pulp::Set;
 
 use Moose;
